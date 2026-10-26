@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>RML Transformer</title>
+<style>
+  :root {
+    --bg: #f4f6f8;
+    --card: #ffffff;
+    --border: #dde3ea;
+    --text: #2f3b4a;
+    --muted: #6b7a8c;
+    --accent: #6f93b8;
+    --accent-dark: #587ca1;
+    --code-bg: #f8fafc;
+    --err: #b4533f;
+  }
+  * { box-sizing: border-box; }
+  body {
+    font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+    color: var(--text);
+    max-width: 1150px; margin: 0 auto; padding: 28px 16px 40px;
+  }
+  h2 { font-weight: 600; margin: 0 0 20px; letter-spacing: .2px; }
+  h3 { font-size: 13px; font-weight: 600; text-transform: uppercase;
+       letter-spacing: .6px; color: var(--muted); margin: 0 0 10px; }
+  .row { display: flex; gap: 20px; }
+  .col { flex: 1; min-width: 0; background: var(--card); border: 1px solid var(--border);
+         border-radius: 10px; padding: 16px; box-shadow: 0 1px 3px rgba(40,60,90,.05); }
+  textarea, pre { width: 100%; font-family: Consolas, "Courier New", monospace; font-size: 12px; }
+  textarea { height: 280px; margin-top: 10px; padding: 10px; resize: vertical;
+             border: 1px solid var(--border); border-radius: 6px; background: var(--code-bg); color: var(--text); }
+  textarea:focus { outline: 2px solid #cfdcea; border-color: var(--accent); }
+  pre { height: 300px; overflow: auto; background: var(--code-bg); border: 1px solid var(--border);
+        border-radius: 6px; padding: 10px; margin: 0 0 10px; white-space: pre-wrap; }
+  input[type=file] { font-size: 12px; color: var(--muted); }
+  .tbl { height: 300px; overflow: auto; border: 1px solid var(--border); border-radius: 6px; }
+  table { border-collapse: collapse; width: 100%; font-size: 12px; }
+  th, td { border-bottom: 1px solid #edf1f5; padding: 5px 8px; text-align: left; word-break: break-all; }
+  th { background: #eef2f6; color: var(--muted); font-weight: 600; position: sticky; top: 0; }
+  tbody tr:hover { background: #f5f8fb; }
+  button { padding: 8px 20px; border: none; border-radius: 6px; background: var(--accent);
+           color: #fff; font-size: 14px; cursor: pointer; transition: background .15s; }
+  button:hover:not(:disabled) { background: var(--accent-dark); }
+  button:disabled { background: #c5d0dc; cursor: not-allowed; }
+  #run { margin: 18px 0; padding: 10px 28px; }
+  #status { margin-left: 12px; color: var(--muted); font-size: 14px; }
+  #count { text-transform: none; letter-spacing: 0; font-weight: 400; }
+  .error { color: var(--err) !important; }
+  @media (max-width: 800px) { .row { flex-direction: column; } }
+</style>
+</head>
+<body>
+<h2>RML Transformer</h2>
+
+<div class="row">
+  <div class="col">
+    <h3>YARRRML rules</h3>
+    <input type="file" id="mappingFile" accept=".yml,.yaml,.txt">
+    <textarea id="mapping" placeholder="Paste YARRRML here or choose a file"></textarea>
+  </div>
+  <div class="col">
+    <h3>XML data source</h3>
+    <input type="file" id="sourceFile" accept=".xml,.txt">
+    <textarea id="source" placeholder="Paste XML here or choose a file"></textarea>
+  </div>
+</div>
+
+<button id="run">Transform</button><span id="status"></span>
+
+<div class="row">
+  <div class="col">
+    <h3>Turtle output (.ttl)</h3>
+    <pre id="ttl"></pre>
+    <button id="download" disabled>Download .ttl</button>
+  </div>
+  <div class="col">
+    <h3>RDF triples <span id="count"></span></h3>
+    <div class="tbl">
+      <table>
+        <thead><tr><th>Subject</th><th>Predicate</th><th>Object</th></tr></thead>
+        <tbody id="triples"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/n3@1.17.2/browser/n3.min.js"></script>
+<script>
+const $ = id => document.getElementById(id);
+const MAX_ROWS = 3000;
+let lastTtl = "";
+
+// Fill the text box when a file is chosen
+function loadFile(inputId, textId) {
+  $(inputId).addEventListener("change", e => {
+    const f = e.target.files[0];
+    if (!f) return;
+    const reader = new FileReader();
+    reader.onload = () => { $(textId).value = reader.result; };
+    reader.readAsText(f);
+  });
+}
+loadFile("mappingFile", "mapping");
+loadFile("sourceFile", "source");
+
+function showTriples(ttl) {
+  const body = $("triples");
+  body.innerHTML = "";
+  let quads;
+  try {
+    quads = new N3.Parser().parse(ttl);
+  } catch (err) {
+    $("count").textContent = "(could not parse: " + err.message + ")";
+    return;
+  }
+  $("count").textContent = "(" + quads.length + " triples" +
+    (quads.length > MAX_ROWS ? ", showing first " + MAX_ROWS : "") + ")";
+  const frag = document.createDocumentFragment();
+  quads.slice(0, MAX_ROWS).forEach(q => {
+    const tr = document.createElement("tr");
+    [q.subject, q.predicate, q.object].forEach(t => {
+      const td = document.createElement("td");
+      td.textContent = t.termType === "Literal"
+        ? '"' + t.value + '"' + (t.language ? "@" + t.language : "")
+            + (t.datatype && !t.language ? " ^^" + t.datatype.value.split("#").pop() : "")
+        : t.value;
+      tr.appendChild(td);
+    });
+    frag.appendChild(tr);
+  });
+  body.appendChild(frag);
+}
+
+$("run").addEventListener("click", async () => {
+  const status = $("status");
+  status.className = "";
+  status.textContent = "Running...";
+  $("ttl").textContent = "";
+  $("triples").innerHTML = "";
+  $("count").textContent = "";
+  $("download").disabled = true;
+
+  const fd = new FormData();
+  fd.append("mapping", new Blob([$("mapping").value], { type: "text/yaml" }), "mapping.yml");
+  fd.append("source", new Blob([$("source").value], { type: "application/xml" }), "source.xml");
+
+  try {
+    const res = await fetch("http://localhost:8000/transform", { method: "POST", body: fd });
+    const text = await res.text();
+    if (!res.ok) {
+      let msg = text;
+      try { msg = JSON.parse(text).detail || text; } catch (_) {}
+      status.className = "error";
+      status.textContent = "Error";
+      $("ttl").textContent = msg;
+      return;
+    }
+    lastTtl = text;
+    $("ttl").textContent = text || "(empty result: check your XPath and source)";
+    $("download").disabled = !text;
+    showTriples(text);
+    status.textContent = "Done";
+  } catch (err) {
+    status.className = "error";
+    status.textContent = "Request failed: " + err.message;
+  }
+});
+
+$("download").addEventListener("click", () => {
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([lastTtl], { type: "text/turtle" }));
+  a.download = "output.ttl";
+  a.click();
+});
+</script>
+</body>
+</html>
