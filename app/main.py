@@ -31,4 +31,7 @@ async def transform(mapping: UploadFile, source: UploadFile):
         return Response(content=(d / "out.ttl").read_text(encoding="utf-8"),
                         media_type="text/turtle")
 
+from app.query_api import router as query_router
+app.include_router(query_router)
+
 app.mount("/", StaticFiles(directory="app/static", html=True), name="static")

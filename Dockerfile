@@ -8,7 +8,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 RUN npm install -g @rmlio/yarrrml-parser
 
 # Download an RMLMapper release jar
-RUN curl -fL -o /opt/rmlmapper.jar "https://github.com/RMLio/rmlmapper-java/releases/download/v8.1.0/rmlmapper-8.1.0-r380-all.jar" \
+RUN curl -fL --retry 10 --retry-all-errors --retry-delay 3 -C - \
+    -o /opt/rmlmapper.jar "https://github.com/RMLio/rmlmapper-java/releases/download/v8.1.0/rmlmapper-8.1.0-r380-all.jar" \
     && unzip -tq /opt/rmlmapper.jar
 
 WORKDIR /srv
