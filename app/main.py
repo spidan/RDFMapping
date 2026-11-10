@@ -1,13 +1,19 @@
 import pathlib, re, subprocess, tempfile
-from fastapi import FastAPI, UploadFile, HTTPException, Response
+from fastapi import FastAPI, UploadFile, Form, HTTPException, Response
 from fastapi.staticfiles import StaticFiles
+from app.clean_formex import clean as clean_formex
 
 app = FastAPI()
                    
 @app.post("/transform")
-async def transform(mapping: UploadFile, source: UploadFile):
+async def transform(mapping: UploadFile, source: UploadFile, clean: bool = Form(False)):
     mapping_text = (await mapping.read()).decode("utf-8")
     source_bytes = await source.read()
+    if clean:
+        try:
+            source_bytes = clean_formex(source_bytes)
+        except Exception as e:
+            raise HTTPException(status_code=400, detail=f"Could not clean the XML: {e}")
 
     with tempfile.TemporaryDirectory() as tmp:
         d = pathlib.Path(tmp)

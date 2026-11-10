@@ -1,0 +1,304 @@
+# =====================================================================
+# Gap analysis queries: Cellar SPARQL endpoint vs. Formex-based CDM graph
+#
+# This file collects the queries used to compare what the public Cellar
+# endpoint offers about the structure of EU legal acts with what the
+# Formex mapping (resources/formex_32026R1744.yml) produces.
+# It is a collection, not one query: run each block on its own.
+#
+#   PART A  Cellar endpoint  https://publications.europa.eu/webapi/rdf/sparql
+#           Run with "use only local data" (sponging off). The
+#           define input:grab-* options fail for the public user with
+#           Virtuoso error SQ074. Results below are from 5 Nov 2026.
+#   PART B  Formex graph     run in the SPARQL box of the web page, with the
+#           mapping resources/formex_32026R1744.yml, the Formex XML
+#           resources/32026R1744.xml and "Clean Formex before mapping"
+#           ticked. The service accepts SELECT only, so counts replace ASK.
+# =====================================================================
+
+
+# =====================================================================
+# PART A: CELLAR ENDPOINT
+# =====================================================================
+
+# ---------------------------------------------------------------------
+# A1. Control query.
+# Checks that the endpoint and the settings work: a property that
+# certainly has data. Result: 5 rows. Also shows that Cellar stores the
+# direction expression -> work as real triples.
+# ---------------------------------------------------------------------
+PREFIX cdm: <http://publications.europa.eu/ontology/cdm#>
+SELECT ?s ?o WHERE { ?s cdm:expression_belongs_to_work ?o } LIMIT 5
+
+
+# ---------------------------------------------------------------------
+# A2. Inverse direction of the same pair.
+# Result: empty. CDM defines many properties in inverse pairs, and
+# Cellar stores only one direction. An empty result for one direction
+# says nothing about the other, so always test both.
+# ---------------------------------------------------------------------
+PREFIX cdm: <http://publications.europa.eu/ontology/cdm#>
+SELECT ?s ?o WHERE { ?s cdm:work_has_expression ?o } LIMIT 5
+
+
+# ---------------------------------------------------------------------
+# A3. Does Cellar hold any article resource?
+# ASK returns true or false and is the cheapest check on a class.
+# Result: false.
+# ---------------------------------------------------------------------
+PREFIX cdm: <http://publications.europa.eu/ontology/cdm#>
+ASK { ?s a cdm:article_legal }
+
+
+# ---------------------------------------------------------------------
+# A4. Same check as rows, in case instances exist.
+# Result: no rows.
+# ---------------------------------------------------------------------
+PREFIX cdm: <http://publications.europa.eu/ontology/cdm#>
+SELECT ?s WHERE { ?s a cdm:article_legal } LIMIT 10
+
+
+# ---------------------------------------------------------------------
+# A5. Article-to-work link, both directions, and the general
+# super-property. All were empty, in line with A3 and A4.
+# ---------------------------------------------------------------------
+PREFIX cdm: <http://publications.europa.eu/ontology/cdm#>
+SELECT ?s ?o WHERE { ?s cdm:article_legal_part_of_work ?o } LIMIT 10
+
+PREFIX cdm: <http://publications.europa.eu/ontology/cdm#>
+SELECT ?s ?o WHERE { ?s cdm:work_contains_article_legal ?o } LIMIT 10
+
+PREFIX cdm: <http://publications.europa.eu/ontology/cdm#>
+SELECT ?s ?o WHERE { ?s cdm:subdivision_part_of_work ?o } LIMIT 10
+
+
+# ---------------------------------------------------------------------
+# A6. Does Cellar hold any instance of the other subdivision classes?
+# One ASK per subclass of cdm:subdivision (article_legal is A3).
+# Result: false for every class, so Cellar uses none of the structure
+# vocabulary that CDM defines.
+# ---------------------------------------------------------------------
+PREFIX cdm: <http://publications.europa.eu/ontology/cdm#>
+ASK { ?s a cdm:alinea }
+
+PREFIX cdm: <http://publications.europa.eu/ontology/cdm#>
+ASK { ?s a cdm:annex }
+
+PREFIX cdm: <http://publications.europa.eu/ontology/cdm#>
+ASK { ?s a cdm:chapter_legal }
+
+PREFIX cdm: <http://publications.europa.eu/ontology/cdm#>
+ASK { ?s a cdm:citation }
+
+PREFIX cdm: <http://publications.europa.eu/ontology/cdm#>
+ASK { ?s a cdm:clause_legal }
+
+PREFIX cdm: <http://publications.europa.eu/ontology/cdm#>
+ASK { ?s a cdm:indent }
+
+PREFIX cdm: <http://publications.europa.eu/ontology/cdm#>
+ASK { ?s a cdm:paragraph_legal }
+
+PREFIX cdm: <http://publications.europa.eu/ontology/cdm#>
+ASK { ?s a cdm:part_legal }
+
+PREFIX cdm: <http://publications.europa.eu/ontology/cdm#>
+ASK { ?s a cdm:point }
+
+PREFIX cdm: <http://publications.europa.eu/ontology/cdm#>
+ASK { ?s a cdm:preamble }
+
+PREFIX cdm: <http://publications.europa.eu/ontology/cdm#>
+ASK { ?s a cdm:recital }
+
+PREFIX cdm: <http://publications.europa.eu/ontology/cdm#>
+ASK { ?s a cdm:rule_legal }
+
+PREFIX cdm: <http://publications.europa.eu/ontology/cdm#>
+ASK { ?s a cdm:section_legal }
+
+PREFIX cdm: <http://publications.europa.eu/ontology/cdm#>
+ASK { ?s a cdm:title_legal }
+
+# The parent class itself:
+PREFIX cdm: <http://publications.europa.eu/ontology/cdm#>
+ASK { ?s a cdm:subdivision }
+
+
+# ---------------------------------------------------------------------
+# A7. What does Cellar say about one act? (point lookup, cheap)
+# The resource is the AI Act notice from the Cellar XML. Shows which
+# properties exist at act level (identifiers, dates, titles, relations)
+# and that no provision-level resource hangs off it.
+# Avoid full scans such as { ?s ?p ?o } without a filter: they hang on
+# the public endpoint.
+# ---------------------------------------------------------------------
+SELECT ?p ?o WHERE {
+  <http://publications.europa.eu/resource/cellar/dc8116a1-3fe6-11ef-865a-01aa75ed71a1> ?p ?o
+} LIMIT 50
+
+
+# ---------------------------------------------------------------------
+# A8. What points to the NIS Directive (CELEX 32016L1148)?
+# Finds the work by CELEX number and lists every resource that refers to
+# it. Parts of an act would normally refer to their parent. The VALUES
+# line allows for the number being stored with or without xsd:string.
+# ---------------------------------------------------------------------
+PREFIX cdm: <http://publications.europa.eu/ontology/cdm#>
+PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
+SELECT DISTINCT ?s ?p
+WHERE {
+  VALUES ?c { "32016L1148" "32016L1148"^^xsd:string }
+  ?w cdm:resource_legal_id_celex ?c .
+  ?s ?p ?w .
+}
+LIMIT 300
+
+
+# ---------------------------------------------------------------------
+# A9. Point lookup for a guessed subdivision URI of the NIS Directive.
+# Tries the ELI pattern used for treaty articles. An empty result is
+# weak evidence alone; read it together with A3 to A6.
+# ---------------------------------------------------------------------
+SELECT ?p ?o
+WHERE { <http://publications.europa.eu/resource/eli/dir/2016/1148/art_14/oj> ?p ?o }
+LIMIT 20
+
+
+# ---------------------------------------------------------------------
+# A10. How does Cellar type a treaty article?
+# Treaty articles are cited in notices with their own identifiers.
+# Result: no type triple, so the endpoint gives no class for them either.
+# ---------------------------------------------------------------------
+SELECT ?type WHERE {
+  <http://publications.europa.eu/resource/eli/treaty/tfeu_2016/art_114/oj> a ?type
+}
+
+
+# =====================================================================
+# PART B: FORMEX GRAPH (mapping resources/formex_32026R1744.yml)
+# =====================================================================
+
+# ---------------------------------------------------------------------
+# B1. Everything in the graph by type.
+# Overview of what the mapping produces: act, articles, expressions,
+# recitals. Compare with A3 to A6, where Cellar returns nothing.
+# ---------------------------------------------------------------------
+SELECT ?type (COUNT(?s) AS ?n) WHERE { ?s a ?type } GROUP BY ?type
+
+
+# ---------------------------------------------------------------------
+# B2. Articles with number and parent act.
+# Counterpart of A3 to A5: the article resources and their link to the
+# work exist here.
+# ---------------------------------------------------------------------
+PREFIX cdm: <http://publications.europa.eu/ontology/cdm#>
+PREFIX ex:  <http://example.org/vocab#>
+SELECT ?art ?n ?work WHERE {
+  ?art a cdm:article_legal ;
+       cdm:article_legal_part_of_work ?work ;
+       ex:number ?n .
+} ORDER BY ?n
+
+
+# ---------------------------------------------------------------------
+# B3. Number of recitals linked to the act.
+# Counterpart of the recital ASK in A6. Also confirms that the recital
+# class and its part-of-work property are used consistently.
+# ---------------------------------------------------------------------
+PREFIX cdm: <http://publications.europa.eu/ontology/cdm#>
+SELECT (COUNT(?r) AS ?recitals) WHERE {
+  ?r a cdm:recital ; cdm:recital_part_of_work ?w .
+}
+
+
+# ---------------------------------------------------------------------
+# B4. Language versions of the articles.
+# Each article has an English expression (FRBR layer): language, title
+# and a link back to the article.
+# ---------------------------------------------------------------------
+PREFIX cdm: <http://publications.europa.eu/ontology/cdm#>
+SELECT ?exp ?art ?lang ?title WHERE {
+  ?exp a cdm:expression ;
+       cdm:expression_belongs_to_work ?art ;
+       cdm:expression_uses_language ?lang ;
+       cdm:expression_title ?title .
+}
+
+
+# ---------------------------------------------------------------------
+# B5. Text of one article.
+# Body text is the part Cellar lacks and CDM has no property for; the
+# mapping stores it as ex:text on the article's expression. Replace
+# art_001 with a URI from B2.
+# ---------------------------------------------------------------------
+PREFIX cdm: <http://publications.europa.eu/ontology/cdm#>
+PREFIX ex:  <http://example.org/vocab#>
+SELECT ?text WHERE {
+  ?exp cdm:expression_belongs_to_work <http://example.org/resource/32026R1744/art_001> ;
+       ex:text ?text .
+}
+
+
+# ---------------------------------------------------------------------
+# B6. Number, heading and text of every article together.
+# Structure and text in one query, which Cellar cannot do. The article
+# number is stored as in the text, for example "Article 1".
+# ---------------------------------------------------------------------
+PREFIX cdm: <http://publications.europa.eu/ontology/cdm#>
+PREFIX ex:  <http://example.org/vocab#>
+SELECT ?n ?title ?text WHERE {
+  ?art a cdm:article_legal ; ex:number ?n .
+  ?exp cdm:expression_belongs_to_work ?art ;
+       cdm:expression_title ?title ;
+       ex:text ?text .
+} ORDER BY ?n
+
+
+# ---------------------------------------------------------------------
+# B7. Keyword search in the text of articles and recitals.
+# Substring match without ranking. Replace the word as needed.
+# ---------------------------------------------------------------------
+PREFIX ex: <http://example.org/vocab#>
+SELECT ?s ?text WHERE {
+  ?s ex:text ?text .
+  FILTER(CONTAINS(LCASE(STR(?text)), "cybersecurity"))
+}
+
+
+# ---------------------------------------------------------------------
+# B8. One recital by number.
+# The recital number is stored as it appears in the text, with brackets,
+# for example "(12)". Use B9 to ignore the brackets.
+# ---------------------------------------------------------------------
+PREFIX cdm: <http://publications.europa.eu/ontology/cdm#>
+PREFIX ex:  <http://example.org/vocab#>
+SELECT ?r ?text WHERE {
+  ?r a cdm:recital ; ex:number "(12)" ; ex:text ?text .
+}
+
+
+# ---------------------------------------------------------------------
+# B9. One recital by number, ignoring the brackets.
+# ---------------------------------------------------------------------
+PREFIX cdm: <http://publications.europa.eu/ontology/cdm#>
+PREFIX ex:  <http://example.org/vocab#>
+SELECT ?r ?text WHERE {
+  ?r a cdm:recital ; ex:number ?n ; ex:text ?text .
+  FILTER(REPLACE(STR(?n), "[()]", "") = "12")
+}
+
+
+# ---------------------------------------------------------------------
+# B10. Which subdivision classes does the Formex graph use?
+# Counterpart of A6 for the Formex graph: lists the CDM classes present.
+# Today: article_legal and recital. Paragraphs, points, chapters and
+# annexes are not mapped yet.
+# ---------------------------------------------------------------------
+PREFIX cdm: <http://publications.europa.eu/ontology/cdm#>
+SELECT ?class (COUNT(?s) AS ?n) WHERE {
+  VALUES ?class { cdm:alinea cdm:annex cdm:article_legal cdm:chapter_legal cdm:citation
+                  cdm:clause_legal cdm:indent cdm:paragraph_legal cdm:part_legal cdm:point
+                  cdm:preamble cdm:recital cdm:rule_legal cdm:section_legal cdm:title_legal }
+  ?s a ?class .
+} GROUP BY ?class ORDER BY DESC(?n)

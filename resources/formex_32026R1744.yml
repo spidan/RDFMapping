@@ -1,0 +1,57 @@
+# YARRRML mapping: Formex (Regulation (EU) 2026/1744) -> CDM-based RDF
+# Expects the Formex after the optional clean_formex.py step (adds N="<n>" to recitals).
+# On raw Formex, replace $(@N) in the recital subject with $(NP/NO.P) (URIs then contain %28 %29).
+# Lines marked VERIFY use CDM IRIs I inferred from class/property labels; check them in the ontology.
+
+prefixes:
+  cdm: http://publications.europa.eu/ontology/cdm#
+  ex: http://example.org/vocab#          # own extension terms (stand-in namespace)
+  res: http://example.org/resource/      # base for the resources minted here (stand-in)
+  xsd: http://www.w3.org/2001/XMLSchema#
+
+mappings:
+
+  # The act itself: anchor on the Cellar CELEX alias URI.
+  act:
+    sources:
+      - ['source.xml~xpath', '/COMBINED.FMX/ACT']
+    s: http://publications.europa.eu/resource/celex/32026R1744
+    po:
+      - [a, cdm:work]
+      - [a, cdm:regulation]
+      - [cdm:resource_legal_id_celex, "32026R1744"]
+
+  # Articles of THIS act only: direct children of ENACTING.TERMS.
+  # (ARTICLE/PARAG elements inside QUOT.S are quoted text of the amended acts, not provisions of this one.)
+  article:
+    sources:
+      - ['source.xml~xpath', '/COMBINED.FMX/ACT/ENACTING.TERMS/ARTICLE']
+    s: res:32026R1744/art_$(@IDENTIFIER)
+    po:
+      - [a, cdm:article_legal]
+      - [cdm:article_legal_part_of_work, http://publications.europa.eu/resource/celex/32026R1744~iri]
+      - [ex:formexIdentifier, $(@IDENTIFIER)]
+      - [ex:number, $(TI.ART)]
+
+  # English expression of each article: heading and text (language-specific parts).
+  article_en:
+    sources:
+      - ['source.xml~xpath', '/COMBINED.FMX/ACT/ENACTING.TERMS/ARTICLE']
+    s: res:32026R1744/art_$(@IDENTIFIER).ENG
+    po:
+      - [a, cdm:expression]
+      - [cdm:expression_belongs_to_work, res:32026R1744/art_$(@IDENTIFIER)~iri]
+      - [cdm:expression_uses_language, http://publications.europa.eu/resource/authority/language/ENG~iri]
+      - [cdm:expression_title, $(STI.ART), en~lang]
+      - [ex:text, $(.), en~lang]
+
+  # Recitals.
+  recital:
+    sources:
+      - ['source.xml~xpath', '/COMBINED.FMX/ACT/PREAMBLE/GR.CONSID/CONSID']
+    s: res:32026R1744/recital_$(@N)
+    po:
+      - [a, cdm:recital]                                                                          # VERIFY
+      - [cdm:recital_part_of_work, http://publications.europa.eu/resource/celex/32026R1744~iri]   # VERIFY
+      - [ex:number, $(NP/NO.P)]
+      - [ex:text, $(NP/TXT), en~lang]

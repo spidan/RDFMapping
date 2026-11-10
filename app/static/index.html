@@ -66,6 +66,10 @@
   </div>
 </div>
 
+<label style="display:block;margin-top:14px;font-size:14px;color:#6b7a8c">
+  <input type="checkbox" id="cleanFormex"> Clean Formex before mapping
+  <span style="font-size:12px">(removes footnotes, separates words; use for Formex files, not for Cellar metadata XML)</span>
+</label>
 <button id="run">Transform</button><span id="status"></span>
 
 <div class="row">
@@ -166,6 +170,7 @@ $("run").addEventListener("click", async () => {
   const fd = new FormData();
   fd.append("mapping", new Blob([$("mapping").value], { type: "text/yaml" }), "mapping.yml");
   fd.append("source", new Blob([$("source").value], { type: "application/xml" }), "source.xml");
+  fd.append("clean", $("cleanFormex").checked ? "true" : "false");
 
   try {
     const res = await fetch("http://localhost:8000/transform", { method: "POST", body: fd });
@@ -217,6 +222,7 @@ $("runQuery").addEventListener("click", async () => {
   fd.append("mapping", new Blob([$("mapping").value], { type: "text/yaml" }), "mapping.yml");
   fd.append("source", new Blob([$("source").value], { type: "application/xml" }), "source.xml");
   fd.append("sparql", $("sparql").value);
+  fd.append("clean", $("cleanFormex").checked ? "true" : "false");
 
   try {
     const res = await fetch("/query", { method: "POST", body: fd });
