@@ -1,0 +1,43 @@
+import pathlib, re, subprocess, tempfile
+from fastapi import FastAPI, UploadFile, Form, HTTPException, Response
+from fastapi.staticfiles import StaticFiles
+from app.clean_formex import clean as clean_formex
+
+app = FastAPI()
+                   
+@app.post("/transform")
+async def transform(mapping: UploadFile, source: UploadFile, clean: bool = Form(False)):
+    mapping_text = (await mapping.read()).decode("utf-8")
+    source_bytes = await source.read()
+    if clean:
+        try:
+            source_bytes = clean_formex(source_bytes)
+        except Exception as e:
+            raise HTTPException(status_code=400, detail=f"Could not clean the XML: {e}")
+
+    with tempfile.TemporaryDirectory() as tmp:
+        d = pathlib.Path(tmp)
+
+        # Make the source name in the mapping match the uploaded file
+        mapping_text = re.sub(r"[\w.\-/]+\.xml(?=~xpath)", "source.xml", mapping_text)
+        (d / "mapping.yml").write_text(mapping_text, encoding="utf-8")
+        (d / "source.xml").write_bytes(source_bytes)
+
+        try:
+            subprocess.run(["yarrrml-parser", "-i", "mapping.yml", "-o", "mapping.rml.ttl"],
+                           cwd=d, check=True, capture_output=True, text=True, timeout=60)
+            subprocess.run(["java", "-jar", "/opt/rmlmapper.jar",
+                            "-m", "mapping.rml.ttl", "-o", "out.ttl", "-s", "turtle"],
+                           cwd=d, check=True, capture_output=True, text=True, timeout=300)
+        except subprocess.CalledProcessError as e:
+            raise HTTPException(status_code=400, detail=e.stderr or e.stdout)
+        except subprocess.TimeoutExpired:
+            raise HTTPException(status_code=504, detail="Mapping timed out")
+
+        return Response(content=(d / "out.ttl").read_text(encoding="utf-8"),
+                        media_type="text/turtle")
+
+from app.query_api import router as query_router
+app.include_router(query_router)
+
+app.mount("/", StaticFiles(directory="app/static", html=True), name="static")
