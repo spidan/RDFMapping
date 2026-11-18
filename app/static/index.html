@@ -60,15 +60,15 @@
     <textarea id="mapping" placeholder="Paste YARRRML here or choose a file"></textarea>
   </div>
   <div class="col">
-    <h3>XML data source</h3>
-    <input type="file" id="sourceFile" accept=".xml,.txt">
-    <textarea id="source" placeholder="Paste XML here or choose a file"></textarea>
+    <h3>XML or JSON data source</h3>
+    <input type="file" id="sourceFile" accept=".xml,.json,.txt">
+    <textarea id="source" placeholder="Paste XML or JSON here or choose a file"></textarea>
   </div>
 </div>
 
 <label style="display:block;margin-top:14px;font-size:14px;color:#6b7a8c">
   <input type="checkbox" id="cleanFormex"> Clean Formex before mapping
-  <span style="font-size:12px">(removes footnotes, separates words; use for Formex files, not for Cellar metadata XML)</span>
+  <span style="font-size:12px">(removes footnotes, separates words; use for Formex files, not for Cellar metadata XML; ignored for JSON)</span>
 </label>
 <button id="run">Transform</button><span id="status"></span>
 
@@ -128,6 +128,14 @@ function loadFile(inputId, textId) {
   });
 }
 loadFile("mappingFile", "mapping");
+// JSON text goes up as source.json, anything else as source.xml
+function sourceParts() {
+  const t = $("source").value;
+  return /^\s*[\[{]/.test(t)
+    ? [new Blob([t], { type: "application/json" }), "source.json"]
+    : [new Blob([t], { type: "application/xml" }), "source.xml"];
+}
+
 loadFile("sourceFile", "source");
 
 function showTriples(ttl) {
@@ -169,7 +177,7 @@ $("run").addEventListener("click", async () => {
 
   const fd = new FormData();
   fd.append("mapping", new Blob([$("mapping").value], { type: "text/yaml" }), "mapping.yml");
-  fd.append("source", new Blob([$("source").value], { type: "application/xml" }), "source.xml");
+  fd.append("source", ...sourceParts());
   fd.append("clean", $("cleanFormex").checked ? "true" : "false");
 
   try {
@@ -184,7 +192,7 @@ $("run").addEventListener("click", async () => {
       return;
     }
     lastTtl = text;
-    $("ttl").textContent = text || "(empty result: check your XPath and source)";
+    $("ttl").textContent = text || "(empty result: check your XPath/JSONPath and source)";
     $("download").disabled = !text;
     showTriples(text);
     status.textContent = "Done";
@@ -220,7 +228,7 @@ $("runQuery").addEventListener("click", async () => {
 
   const fd = new FormData();
   fd.append("mapping", new Blob([$("mapping").value], { type: "text/yaml" }), "mapping.yml");
-  fd.append("source", new Blob([$("source").value], { type: "application/xml" }), "source.xml");
+  fd.append("source", ...sourceParts());
   fd.append("sparql", $("sparql").value);
   fd.append("clean", $("cleanFormex").checked ? "true" : "false");
 

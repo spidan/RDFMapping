@@ -1,4 +1,4 @@
-import pathlib, re, subprocess, tempfile
+import json, pathlib, re, subprocess, tempfile
 from fastapi import APIRouter, UploadFile, Form, HTTPException
 from rdflib import Graph
 
@@ -8,17 +8,35 @@ router = APIRouter()
 MAX_ROWS = 5000
 
 
+# A source in the mapping looks like  file.xml~xpath  or  file.json~jsonpath
+SOURCE_RE = re.compile(r"[\w.\-/]+\.(?:xml|json)(?=~(?:xpath|jsonpath))")
+
+
+def detect_format(mapping_text: str) -> str:
+    """The mapping decides: a ~jsonpath source means JSON, otherwise XML."""
+    return "json" if "~jsonpath" in mapping_text else "xml"
+
+
 def run_mapping(mapping_text: str, source_bytes: bytes, clean_xml: bool = False) -> str:
-    if clean_xml:
+    fmt = detect_format(mapping_text)
+    if fmt == "json":
+        # the Formex cleaning option does not apply to JSON
+        try:
+            json.loads(source_bytes.decode("utf-8-sig"))
+        except Exception as e:
+            raise HTTPException(status_code=400, detail=f"The source is not valid JSON: {e}")
+    elif clean_xml:
         try:
             source_bytes = clean_formex(source_bytes)
         except Exception as e:
             raise HTTPException(status_code=400, detail=f"Could not clean the XML: {e}")
+    source_name = f"source.{fmt}"
     with tempfile.TemporaryDirectory() as tmp:
         d = pathlib.Path(tmp)
-        mapping_text = re.sub(r"[\w.\-/]+\.xml(?=~xpath)", "source.xml", mapping_text)
+        # Make the source name in the mapping match the uploaded file
+        mapping_text = SOURCE_RE.sub(source_name, mapping_text)
         (d / "mapping.yml").write_text(mapping_text, encoding="utf-8")
-        (d / "source.xml").write_bytes(source_bytes)
+        (d / source_name).write_bytes(source_bytes)
         try:
             subprocess.run(["yarrrml-parser", "-i", "mapping.yml", "-o", "mapping.rml.ttl"],
                            cwd=d, check=True, capture_output=True, text=True, timeout=60)
