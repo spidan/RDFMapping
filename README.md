@@ -1,7 +1,9 @@
 # RDFMapping
 ## Commands to setup the service
 - docker build -t rml-service .
-- docker run --rm -p 8000:8000 rml-service
+- docker run --rm -p 8000:8000 -v rdf-data:/data rml-service
+
+(`-v rdf-data:/data` keeps the stored graphs when the container restarts; without it they are lost.)
 
 ## Using the map endpoints
 Start the service first (commands above), then run these in PowerShell from the repository root. Use `curl.exe`, not the `curl` alias.
